@@ -6,16 +6,46 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="ADHD 管理">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%235a4a3a%22 rx=%2220%22/><text x=%2250%22 y=%2268%22 font-size=%2260%22 text-anchor=%22middle%22 fill=%22white%22>⭐</text></svg>">
   <title>ADHD 日常管理工具 - 標籤版</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700;900&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
   <style>
-    /* 原有所有樣式保持不變（為了簡潔這裡省略相同部分） */
-    /* ...（你原本的 <style> 全部保留）... */
-    .tag { display: inline-block; padding: 2px 8px; margin: 2px; border-radius: 9999px; font-size: 12px; font-weight: 600; background: #ede8df; color: #5a4a3a; }
-    .tag-filter { padding: 6px 12px; margin: 4px; border-radius: 9999px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
-    .tag-filter.active { background: #5a4a3a; color: white; }
+    body {
+      margin: 0;
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f8f5f2;
+    }
+    input:focus { outline: none; }
+    
+    /* 標籤樣式 */
+    .tag { 
+      display: inline-block; 
+      padding: 2px 8px; 
+      margin: 2px; 
+      border-radius: 9999px; 
+      font-size: 12px; 
+      font-weight: 600; 
+      background: #ede8df; 
+      color: #5a4a3a; 
+    }
+    
+    /* 過濾器按鈕樣式 */
+    .tag-filter { 
+      padding: 6px 12px; 
+      margin: 4px; 
+      border-radius: 9999px; 
+      font-size: 13px; 
+      cursor: pointer; 
+      transition: all 0.2s; 
+      background: #ede8df;
+      color: #5a4a3a;
+      border: none;
+      font-weight: 500;
+    }
+    .tag-filter.active { 
+      background: #5a4a3a; 
+      color: white; 
+    }
   </style>
 </head>
 <body>
@@ -24,27 +54,46 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
   <script type="text/babel">
-    const { useState, useEffect, useRef, useCallback, useReducer, memo } = React;
+    // 1. 修正：記得把 useMemo 抓出來
+    const { useState, useCallback, useReducer, memo, useMemo } = React;
 
-    /* ==================== 常數（新增標籤系統） ==================== */
-    const P = { /* 原版色彩系統 */ };
-    /* ... 所有原版常數（PRIORITY, INIT_*, BADGES 等）全部保留 ... */
-
+    // 2. 補齊必備的常數與工具函式
+    const P = { 
+      bg: '#f8f5f2', 
+      card: '#ffffff', 
+      accent: '#5a4a3a', 
+      text: '#333333', 
+      sub: '#888888', 
+      border: '#e0d6c8', 
+      tag: '#ede8df' 
+    };
+    
     const DEFAULT_TAGS = ["工作", "健康", "學習", "家務", "購物", "財務", "其他"];
+    
+    const genId = () => Math.random().toString(36).substr(2, 9);
+    
+    // 預設有一些假資料讓你測試
+    const loadData = () => ({
+      pendingItems: [
+        { id: genId(), text: "整理書桌", priority: "medium", tags: ["家務"] },
+        { id: genId(), text: "讀 React 文件", priority: "high", tags: ["學習", "工作"] }
+      ]
+    });
 
-    /* ==================== 資料結構更新（pendingItems 增加 tags） ==================== */
-    /* 在 loadData 與 defaultData 中，pendingItems 每個項目會自動加上 tags: [] */
-
-    /* ==================== 標籤選擇器元件（新） ==================== */
+    // ==================== 標籤選擇器元件 ====================
+    // 3. 全面改寫為乾淨的 JSX
     const TagSelector = memo(({ selectedTags, onChange }) => {
       const [customTag, setCustomTag] = useState("");
+      
       const toggleTag = (tag) => {
         const newTags = selectedTags.includes(tag)
           ? selectedTags.filter(t => t !== tag)
           : [...selectedTags, tag];
         onChange(newTags);
       };
+      
       const addCustom = () => {
         if (customTag.trim() && !selectedTags.includes(customTag.trim())) {
           onChange([...selectedTags, customTag.trim()]);
@@ -52,55 +101,65 @@
         }
       };
 
-      return React.createElement('div', { style: { marginBottom: 12 } },
-        React.createElement('div', { style: { fontSize: 13, color: P.sub, marginBottom: 8 } }, "標籤（可複選）"),
-        React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
-          DEFAULT_TAGS.map(tag => 
-            React.createElement('button', {
-              key: tag,
-              onClick: () => toggleTag(tag),
-              style: {
-                ...P.tagStyle || {},
-                background: selectedTags.includes(tag) ? P.accent : P.tag,
-                color: selectedTags.includes(tag) ? '#fff' : P.text,
-                padding: '4px 12px',
-                borderRadius: 9999,
-                fontSize: 13
-              }
-            }, `#${tag}`)
-          ),
-          /* 自訂標籤輸入 */
-          React.createElement('div', { style: { display: 'flex', width: '100%', marginTop: 8 } },
-            React.createElement('input', {
-              value: customTag,
-              onChange: e => setCustomTag(e.target.value),
-              placeholder: "輸入自訂標籤...",
-              style: { flex: 1, borderRadius: 10, padding: '8px 12px', border: `1px solid ${P.border}` }
-            }),
-            React.createElement('button', {
-              onClick: addCustom,
-              style: { marginLeft: 8, background: P.accent, color: '#fff', padding: '8px 16px', borderRadius: 10 }
-            }, "新增")
-          )
-        )
+      return (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, color: P.sub, marginBottom: 8 }}>選擇標籤（可複選）</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {DEFAULT_TAGS.map(tag => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                style={{
+                  background: selectedTags.includes(tag) ? P.accent : P.tag,
+                  color: selectedTags.includes(tag) ? '#fff' : P.text,
+                  padding: '4px 12px',
+                  borderRadius: 9999,
+                  fontSize: 13,
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', width: '100%', marginTop: 8 }}>
+            <input
+              value={customTag}
+              onChange={e => setCustomTag(e.target.value)}
+              placeholder="輸入自訂標籤..."
+              style={{ flex: 1, borderRadius: 10, padding: '8px 12px', border: `1px solid ${P.border}` }}
+            />
+            <button
+              onClick={addCustom}
+              style={{ marginLeft: 8, background: P.accent, color: '#fff', padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer' }}
+            >
+              新增
+            </button>
+          </div>
+        </div>
       );
     });
 
-    /* ==================== 主 App（已整合標籤系統） ==================== */
+    // ==================== 主 App ====================
     const App = () => {
-      const [data, dispatch] = useReducer(/* 原版 reducer，已支援 tags */ (state, action) => {
+      // 4. 改用惰性初始化，避免不必要的 loadData 呼叫
+      const [data, dispatch] = useReducer((state, action) => {
         if (action.type === 'UPDATE') {
           return { ...state, ...action.payload };
         }
         return state;
-      }, loadData());
+      }, null, loadData);
 
       const upd = useCallback((payload) => dispatch({ type: 'UPDATE', payload }), []);
 
-      /* 新增標籤過濾 state */
       const [activeFilters, setActiveFilters] = useState([]);
+      
+      // 這些 State 是為了「新增任務區塊」準備的
+      const [inputText, setInputText] = useState("");
+      const [selectedTagsForNew, setSelectedTagsForNew] = useState([]);
 
-      /* 過濾後的任務列表 */
+      // 標籤過濾邏輯
       const filteredPending = useMemo(() => {
         if (activeFilters.length === 0) return data.pendingItems;
         return data.pendingItems.filter(item =>
@@ -108,66 +167,102 @@
         );
       }, [data.pendingItems, activeFilters]);
 
-      /* 新增任務時加入標籤 */
-      const addPendingWithTags = (text, priority = "medium", tags = []) => {
-        const t = text.trim();
+      // 執行新增任務
+      const addPendingWithTags = () => {
+        const t = inputText.trim();
         if (!t) return;
         upd({
           pendingItems: [...data.pendingItems, {
             id: genId(),
             text: t,
-            priority,
-            tags: tags.length ? tags : []
+            priority: "medium",
+            tags: selectedTagsForNew.length ? selectedTagsForNew : []
           }]
         });
+        // 新增後清空輸入框與標籤選擇
+        setInputText("");
+        setSelectedTagsForNew([]);
       };
 
-      /* 在總覽頁暫放區顯示標籤過濾列 */
-      /* ...（其餘原有邏輯保持不變）... */
+      return (
+        <div style={{ minHeight: "100vh", padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
+          
+          <h2 style={{ color: P.accent, textAlign: "center" }}>ADHD 日常管理 - 標籤測試</h2>
 
-      return React.createElement('div', { style: { minHeight: "100vh", background: P.bg } },
-        /* 原有 Header、Tab 等 */
-        /* 在「暫放區」上方新增標籤過濾 */
-        React.createElement('div', { style: { padding: '14px 18px', background: P.card, borderRadius: 16, margin: '16px 14px' } },
-          React.createElement('div', { style: { fontSize: 13, color: P.sub, marginBottom: 8 } }, "🔖 標籤過濾"),
-          React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6 } },
-            React.createElement('button', {
-              onClick: () => setActiveFilters([]),
-              className: activeFilters.length === 0 ? 'tag-filter active' : 'tag-filter'
-            }, "全部"),
-            DEFAULT_TAGS.map(tag =>
-              React.createElement('button', {
-                key: tag,
-                onClick: () => {
-                  const newFilters = activeFilters.includes(tag)
-                    ? activeFilters.filter(t => t !== tag)
-                    : [...activeFilters, tag];
-                  setActiveFilters(newFilters);
-                },
-                className: activeFilters.includes(tag) ? 'tag-filter active' : 'tag-filter'
-              }, `#${tag}`)
-            )
-          )
-        ),
+          {/* === 測試區塊：新增任務 === */}
+          <div style={{ background: P.card, padding: 16, borderRadius: 16, marginBottom: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: 16, color: P.text }}>📝 記下新任務</h3>
+            <input 
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              placeholder="這件事需要被記住嗎？"
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px", borderRadius: 8, border: `1px solid ${P.border}`, marginBottom: 12, fontSize: 16 }}
+            />
+            <TagSelector selectedTags={selectedTagsForNew} onChange={setSelectedTagsForNew} />
+            <button 
+              onClick={addPendingWithTags} 
+              style={{ width: '100%', padding: 12, background: P.accent, color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', marginTop: 8, fontSize: 15, fontWeight: "bold" }}
+            >
+              加入暫放區
+            </button>
+          </div>
 
-        /* 任務列表使用 filteredPending，並顯示標籤 */
-        filteredPending.map(item => 
-          React.createElement('div', { key: item.id, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderTop: '1px solid #e0d6c8' } },
-            /* 原有優先級、文字 */
-            React.createElement('div', { style: { flex: 1 } },
-              item.text,
-              item.tags && item.tags.length > 0 && 
-                React.createElement('div', { style: { marginTop: 6 } },
-                  item.tags.map(tag => React.createElement('span', { key: tag, className: 'tag' }, `#${tag}`))
-                )
-            ),
-            /* 完成按鈕等 */
-          )
-        )
+          {/* === 標籤過濾器 === */}
+          <div style={{ padding: '14px 18px', background: P.card, borderRadius: 16, marginBottom: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            <div style={{ fontSize: 13, color: P.sub, marginBottom: 8 }}>🔖 篩選顯示</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <button
+                onClick={() => setActiveFilters([])}
+                className={activeFilters.length === 0 ? 'tag-filter active' : 'tag-filter'}
+              >
+                全部
+              </button>
+              {DEFAULT_TAGS.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => {
+                    const newFilters = activeFilters.includes(tag)
+                      ? activeFilters.filter(t => t !== tag)
+                      : [...activeFilters, tag];
+                    setActiveFilters(newFilters);
+                  }}
+                  className={activeFilters.includes(tag) ? 'tag-filter active' : 'tag-filter'}
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* === 任務列表區 === */}
+          <div style={{ background: P.card, padding: '0 16px', borderRadius: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            {filteredPending.length === 0 ? (
+              <div style={{ padding: "30px 0", textAlign: "center", color: P.sub }}>
+                太棒了，目前沒有符合的待辦事項 🎉
+              </div>
+            ) : (
+              filteredPending.map((item, index) => (
+                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 0', borderBottom: index !== filteredPending.length - 1 ? `1px solid ${P.border}` : 'none' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: P.text, fontSize: 16, fontWeight: 500 }}>{item.text}</div>
+                    {item.tags && item.tags.length > 0 && (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {item.tags.map(tag => (
+                          <span key={tag} className="tag">#{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+        </div>
       );
     };
 
-    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
